@@ -4,6 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 
 type AppView = "create" | "quotes" | "clients" | "settings";
 
+type Client = {
+  id: number;
+  nom: string;
+  email: string;
+  telephone: string;
+  adresse: string;
+};
+
 type QuoteLine = {
   reference: string;
   designation: string;
@@ -52,10 +60,12 @@ type AIGeneratorTemplate = {
   lines: QuoteLine[];
 };
 
-const QUOTES_KEY = "henri_like_quotes";
-const COUNTER_KEY = "henri_like_quote_counter";
-const COMPANY_KEY = "henri_like_company";
-const SAVED_QUOTES_KEY = "savedQuotes";
+const USER_EMAIL_KEY = "userEmail";
+const BASE_SAVED_QUOTES_KEY = "savedQuotes";
+const BASE_COUNTER_KEY = "quoteCounter";
+const BASE_COMPANY_KEY = "companySettings";
+const BASE_CLIENTS_KEY = "clients";
+const LEGACY_COMPANY_KEY = "henri_like_company";
 const DEFAULT_NOTE = "Merci pour votre confiance.";
 const DEFAULT_CONDITIONS = "Paiement a 30 jours. Acompte de 40% a la commande.";
 
@@ -90,6 +100,8 @@ const defaultCompanyInfo: CompanyInfo = {
   defaultPaymentConditions: DEFAULT_CONDITIONS,
   defaultQuoteNote: DEFAULT_NOTE,
 };
+
+const getScopedKey = (baseKey: string, email: string) => `${baseKey}:${email}`;
 
 const getAIGeneratorTemplate = (input: string): AIGeneratorTemplate => {
   const prompt = input.toLowerCase();
@@ -295,11 +307,15 @@ const getAIGeneratorTemplate = (input: string): AIGeneratorTemplate => {
 export default function Page() {
   const [activeView, setActiveView] = useState<AppView>("create");
   const [isHydrated, setIsHydrated] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginError, setLoginError] = useState("");
   const [showPreview, setShowPreview] = useState(false);
   const [selectedQuoteId, setSelectedQuoteId] = useState<number | null>(null);
 
   const [quoteCounter, setQuoteCounter] = useState(0);
   const [savedQuotes, setSavedQuotes] = useState<SavedQuote[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
 
   const [company, setCompany] = useState<CompanyInfo>(defaultCompanyInfo);
   const [settingsForm, setSettingsForm] = useState<CompanyInfo>(defaultCompanyInfo);
@@ -315,14 +331,47 @@ export default function Page() {
   const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
+    const storedUserEmail = window.localStorage.getItem(USER_EMAIL_KEY) ?? "";
+    setUserEmail(storedUserEmail);
+    setLoginEmail(storedUserEmail);
+  }, []);
+
+  useEffect(() => {
+    if (!userEmail) {
+      setIsHydrated(false);
+      return;
+    }
+
     try {
-      const storedQuotes = window.localStorage.getItem(QUOTES_KEY);
-      const legacyStoredQuotes = window.localStorage.getItem(SAVED_QUOTES_KEY);
-      const storedCounter = window.localStorage.getItem(COUNTER_KEY);
-      const storedCompany = window.localStorage.getItem(COMPANY_KEY);
-      const quotesPayload = storedQuotes ?? legacyStoredQuotes;
-      if (quotesPayload) {
-        const parsed = JSON.parse(quotesPayload) as SavedQuote[];
+      const scopedQuotesKey = getScopedKey(BASE_SAVED_QUOTES_KEY, userEmail);
+      const scopedCounterKey = getScopedKey(BASE_COUNTER_KEY, userEmail);
+      const scopedCompanyKey = getScopedKey(BASE_COMPANY_KEY, userEmail);
+      const scopedClientsKey = getScopedKey(BASE_CLIENTS_KEY, userEmail);
+
+      const storedQuotes =
+        window.localStorage.getItem(scopedQuotesKey) ??
+        window.localStorage.getItem(getScopedKey("henri_like_quotes", userEmail)) ??
+        window.localStorage.getItem(BASE_SAVED_QUOTES_KEY);
+      const storedCounter =
+        window.localStorage.getItem(scopedCounterKey) ??
+        window.localStorage.getItem(getScopedKey("henri_like_quote_counter", userEmail)) ??
+        window.localStorage.getItem(BASE_COUNTER_KEY);
+      const storedCompany =
+        window.localStorage.getItem(scopedCompanyKey) ??
+        window.localStorage.getItem(BASE_COMPANY_KEY) ??
+        window.localStorage.getItem(LEGACY_COMPANY_KEY);
+      const storedClients =
+        window.localStorage.getItem(scopedClientsKey) ??
+        window.localStorage.getItem(BASE_CLIENTS_KEY);
+
+      setSavedQuotes([]);
+      setQuoteCounter(0);
+      setClients([]);
+      setCompany(defaultCompanyInfo);
+      setSettingsForm(defaultCompanyInfo);
+
+      if (storedQuotes) {
+        const parsed = JSON.parse(storedQuotes) as SavedQuote[];
         if (Array.isArray(parsed)) {
           const normalizedQuotes = parsed.map((quote) => ({
             ...quote,
@@ -335,10 +384,12 @@ export default function Page() {
           setSavedQuotes(normalizedQuotes);
         }
       }
+
       if (storedCounter) {
         const parsedCounter = Number(storedCounter);
         if (Number.isFinite(parsedCounter)) setQuoteCounter(parsedCounter);
       }
+
       if (storedCompany) {
         const parsedCompany = JSON.parse(storedCompany) as CompanyInfo;
         if (parsedCompany && typeof parsedCompany === "object") {
@@ -348,32 +399,52 @@ export default function Page() {
           };
           setCompany(normalizedCompany);
           setSettingsForm(normalizedCompany);
+          setNotes(normalizedCompany.defaultQuoteNote || DEFAULT_NOTE);
+          setConditions(normalizedCompany.defaultPaymentConditions || DEFAULT_CONDITIONS);
         }
-      } else {
-        setSettingsForm(defaultCompanyInfo);
+      }
+
+      if (storedClients) {
+        const parsedClients = JSON.parse(storedClients) as Client[];
+        if (Array.isArray(parsedClients)) {
+          setClients(parsedClients);
+        }
       }
     } catch {
       setErrorMessage("Impossible de charger les donnees sauvegardees.");
     } finally {
       setIsHydrated(true);
     }
-  }, []);
+  }, [userEmail]);
 
   useEffect(() => {
-    if (!isHydrated) return;
-    window.localStorage.setItem(QUOTES_KEY, JSON.stringify(savedQuotes));
-    window.localStorage.setItem(SAVED_QUOTES_KEY, JSON.stringify(savedQuotes));
-  }, [savedQuotes, isHydrated]);
+    if (!isHydrated || !userEmail) return;
+    window.localStorage.setItem(
+      getScopedKey(BASE_SAVED_QUOTES_KEY, userEmail),
+      JSON.stringify(savedQuotes)
+    );
+  }, [savedQuotes, isHydrated, userEmail]);
 
   useEffect(() => {
-    if (!isHydrated) return;
-    window.localStorage.setItem(COUNTER_KEY, String(quoteCounter));
-  }, [quoteCounter, isHydrated]);
+    if (!isHydrated || !userEmail) return;
+    window.localStorage.setItem(getScopedKey(BASE_COUNTER_KEY, userEmail), String(quoteCounter));
+  }, [quoteCounter, isHydrated, userEmail]);
 
   useEffect(() => {
-    if (!isHydrated) return;
-    window.localStorage.setItem(COMPANY_KEY, JSON.stringify(company));
-  }, [company, isHydrated]);
+    if (!isHydrated || !userEmail) return;
+    window.localStorage.setItem(
+      getScopedKey(BASE_COMPANY_KEY, userEmail),
+      JSON.stringify(company)
+    );
+  }, [company, isHydrated, userEmail]);
+
+  useEffect(() => {
+    if (!isHydrated || !userEmail) return;
+    window.localStorage.setItem(
+      getScopedKey(BASE_CLIENTS_KEY, userEmail),
+      JSON.stringify(clients)
+    );
+  }, [clients, isHydrated, userEmail]);
 
   const totals = useMemo(() => {
     return lines.reduce(
@@ -460,6 +531,36 @@ export default function Page() {
     setConditions(company.defaultPaymentConditions || DEFAULT_CONDITIONS);
   };
 
+  const continueWithEmail = () => {
+    const normalizedEmail = loginEmail.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setLoginError("Entrez votre email pour continuer.");
+      return;
+    }
+    if (!normalizedEmail.includes("@")) {
+      setLoginError("Entrez un email valide.");
+      return;
+    }
+
+    window.localStorage.setItem(USER_EMAIL_KEY, normalizedEmail);
+    setUserEmail(normalizedEmail);
+    setLoginError("");
+  };
+
+  const changeAccount = () => {
+    window.localStorage.removeItem(USER_EMAIL_KEY);
+    setUserEmail("");
+    setLoginEmail("");
+    setIsHydrated(false);
+    setSavedQuotes([]);
+    setQuoteCounter(0);
+    setClients([]);
+    setSelectedQuoteId(null);
+    setErrorMessage("");
+    setSuccessMessage("");
+    setLoginError("");
+  };
+
   const saveCurrentQuote = (status: "Brouillon" | "Finalisé") => {
     const hasAtLeastOneLine = lines.some((line) => {
       const hasContent = line.designation.trim() || line.reference.trim();
@@ -510,6 +611,26 @@ export default function Page() {
 
     setSavedQuotes((prev) => [newQuote, ...prev]);
     setQuoteCounter(nextCounter);
+    setClients((prev) => {
+      const normalizedNom = clientNom.trim().toLowerCase();
+      const normalizedAdresse = clientAdresse.trim().toLowerCase();
+      const alreadyExists = prev.some(
+        (client) =>
+          client.nom.trim().toLowerCase() === normalizedNom &&
+          client.adresse.trim().toLowerCase() === normalizedAdresse
+      );
+      if (alreadyExists) return prev;
+      return [
+        ...prev,
+        {
+          id: Date.now(),
+          nom: clientNom.trim(),
+          adresse: clientAdresse.trim(),
+          email: "",
+          telephone: "",
+        },
+      ];
+    });
     setSuccessMessage(status === "Finalisé" ? "Devis finalisé" : "Devis sauvegardé");
     setErrorMessage("");
     setSelectedQuoteId(newQuote.id);
@@ -546,7 +667,6 @@ export default function Page() {
     };
 
     setCompany(nextCompany);
-    window.localStorage.setItem(COMPANY_KEY, JSON.stringify(nextCompany));
     setNotes(nextCompany.defaultQuoteNote);
     setConditions(nextCompany.defaultPaymentConditions);
     setErrorMessage("");
@@ -559,6 +679,40 @@ export default function Page() {
     { id: "clients", label: "Clients" },
     { id: "settings", label: "Parametres" },
   ];
+
+  if (!userEmail) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-100 p-4 text-slate-900">
+        <section className="w-full max-w-md rounded-2xl border border-blue-100 bg-white p-6 shadow-sm">
+          <h1 className="text-2xl font-bold text-blue-700">Connexion</h1>
+          <p className="mt-2 text-sm text-slate-500">
+            Entrez votre email pour acceder a votre espace devis.
+          </p>
+          <label className="mt-5 block text-sm font-medium text-slate-700">
+            Email
+            <input
+              type="email"
+              value={loginEmail}
+              onChange={(e) => setLoginEmail(e.target.value)}
+              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              placeholder="exemple@email.com"
+            />
+          </label>
+          {loginError && (
+            <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {loginError}
+            </p>
+          )}
+          <button
+            onClick={continueWithEmail}
+            className="mt-4 w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            Continuer
+          </button>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900">
@@ -584,10 +738,22 @@ export default function Page() {
               />
 
               <div>
-                <h1 className="text-xl font-bold text-slate-900">Henri BTP</h1>
+                <h1 className="text-xl font-bold text-slate-900">{company.nom}</h1>
 
                 <p className="text-sm text-slate-500">Logiciel de devis</p>
               </div>
+            </div>
+            <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Connecte
+              </p>
+              <p className="mt-1 break-all text-sm font-medium text-slate-800">{userEmail}</p>
+              <button
+                onClick={changeAccount}
+                className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                Changer de compte
+              </button>
             </div>
             <nav className="space-y-2">
               {menuItems.map((item) => (
@@ -923,8 +1089,23 @@ export default function Page() {
               <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 className="text-2xl font-bold text-blue-700">Clients</h2>
                 <p className="mt-2 text-sm text-slate-500">
-                  Cette section sera enrichie prochainement. Les clients sont deja visibles dans vos devis sauvegardes.
+                  {clients.length > 0
+                    ? `${clients.length} client(s) enregistre(s) pour ${userEmail}.`
+                    : "Aucun client enregistre pour ce compte pour le moment."}
                 </p>
+                {clients.length > 0 && (
+                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {clients.map((client) => (
+                      <article
+                        key={client.id}
+                        className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+                      >
+                        <p className="font-semibold text-slate-900">{client.nom}</p>
+                        <p className="mt-1 text-sm text-slate-600">{client.adresse}</p>
+                      </article>
+                    ))}
+                  </div>
+                )}
               </article>
             )}
 
