@@ -522,15 +522,6 @@ export default function Page() {
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[240px_minmax(0,1fr)_300px]">
           <aside className="no-print rounded-2xl border border-blue-100 bg-white p-4 shadow-sm lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)]">
-            <div className="mb-6 flex items-center gap-3 rounded-xl bg-blue-50 p-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 font-bold text-white">
-                {company.logoText || "HF"}
-              </div>
-              <div>
-                <p className="font-semibold text-slate-900">{company.nom}</p>
-                <p className="text-xs text-slate-500">Henri style</p>
-              </div>
-            </div>
             <nav className="space-y-2">
               {menuItems.map((item) => (
                 <button
