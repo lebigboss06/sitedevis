@@ -21,6 +21,10 @@ type SavedQuote = {
   companyNom: string;
   companyAdresse: string;
   companyEmail: string;
+  companyTelephone: string;
+  companySiret: string;
+  companyTvaIntracom: string;
+  companyLogoUrl: string;
   lines: QuoteLine[];
   notes: string;
   conditions: string;
@@ -31,10 +35,15 @@ type SavedQuote = {
 };
 
 type CompanyInfo = {
-  logoText: string;
   nom: string;
   adresse: string;
   email: string;
+  telephone: string;
+  siret: string;
+  tvaIntracom: string;
+  logoUrl: string;
+  defaultPaymentConditions: string;
+  defaultQuoteNote: string;
 };
 
 type AIGeneratorTemplate = {
@@ -47,6 +56,8 @@ const QUOTES_KEY = "henri_like_quotes";
 const COUNTER_KEY = "henri_like_quote_counter";
 const COMPANY_KEY = "henri_like_company";
 const SAVED_QUOTES_KEY = "savedQuotes";
+const DEFAULT_NOTE = "Merci pour votre confiance.";
+const DEFAULT_CONDITIONS = "Paiement a 30 jours. Acompte de 40% a la commande.";
 
 const toNumber = (value: string) => {
   const parsed = Number(value.replace(",", "."));
@@ -67,6 +78,18 @@ const makeLine = (): QuoteLine => ({
   puHT: "",
   tva: "20",
 });
+
+const defaultCompanyInfo: CompanyInfo = {
+  nom: "Henri BTP",
+  adresse: "12 rue des Artisans, 75000 Paris",
+  email: "contact@henrifacturation.fr",
+  telephone: "",
+  siret: "",
+  tvaIntracom: "",
+  logoUrl: "/logo.png",
+  defaultPaymentConditions: DEFAULT_CONDITIONS,
+  defaultQuoteNote: DEFAULT_NOTE,
+};
 
 const getAIGeneratorTemplate = (input: string): AIGeneratorTemplate => {
   const prompt = input.toLowerCase();
@@ -278,20 +301,14 @@ export default function Page() {
   const [quoteCounter, setQuoteCounter] = useState(0);
   const [savedQuotes, setSavedQuotes] = useState<SavedQuote[]>([]);
 
-  const [company, setCompany] = useState<CompanyInfo>({
-    logoText: "HF",
-    nom: "Henri BTP",
-    adresse: "12 rue des Artisans, 75000 Paris",
-    email: "contact@henrifacturation.fr",
-  });
+  const [company, setCompany] = useState<CompanyInfo>(defaultCompanyInfo);
+  const [settingsForm, setSettingsForm] = useState<CompanyInfo>(defaultCompanyInfo);
 
   const [clientNom, setClientNom] = useState("");
   const [clientAdresse, setClientAdresse] = useState("");
   const [siteDescriptionPrompt, setSiteDescriptionPrompt] = useState("");
-  const [notes, setNotes] = useState("Merci pour votre confiance.");
-  const [conditions, setConditions] = useState(
-    "Paiement a 30 jours. Acompte de 40% a la commande."
-  );
+  const [notes, setNotes] = useState(DEFAULT_NOTE);
+  const [conditions, setConditions] = useState(DEFAULT_CONDITIONS);
   const [lines, setLines] = useState<QuoteLine[]>([makeLine()]);
 
   const [errorMessage, setErrorMessage] = useState("");
@@ -310,6 +327,10 @@ export default function Page() {
           const normalizedQuotes = parsed.map((quote) => ({
             ...quote,
             statut: quote.statut ?? "Brouillon",
+            companyTelephone: quote.companyTelephone ?? "",
+            companySiret: quote.companySiret ?? "",
+            companyTvaIntracom: quote.companyTvaIntracom ?? "",
+            companyLogoUrl: quote.companyLogoUrl ?? "/logo.png",
           }));
           setSavedQuotes(normalizedQuotes);
         }
@@ -321,8 +342,15 @@ export default function Page() {
       if (storedCompany) {
         const parsedCompany = JSON.parse(storedCompany) as CompanyInfo;
         if (parsedCompany && typeof parsedCompany === "object") {
-          setCompany(parsedCompany);
+          const normalizedCompany: CompanyInfo = {
+            ...defaultCompanyInfo,
+            ...parsedCompany,
+          };
+          setCompany(normalizedCompany);
+          setSettingsForm(normalizedCompany);
         }
+      } else {
+        setSettingsForm(defaultCompanyInfo);
       }
     } catch {
       setErrorMessage("Impossible de charger les donnees sauvegardees.");
@@ -377,6 +405,10 @@ export default function Page() {
         companyNom: company.nom,
         companyAdresse: company.adresse,
         companyEmail: company.email,
+        companyTelephone: company.telephone,
+        companySiret: company.siret,
+        companyTvaIntracom: company.tvaIntracom,
+        companyLogoUrl: company.logoUrl,
         lines,
         notes,
         conditions,
@@ -424,8 +456,8 @@ export default function Page() {
     setClientNom("");
     setClientAdresse("");
     setLines([makeLine()]);
-    setNotes("Merci pour votre confiance.");
-    setConditions("Paiement a 30 jours. Acompte de 40% a la commande.");
+    setNotes(company.defaultQuoteNote || DEFAULT_NOTE);
+    setConditions(company.defaultPaymentConditions || DEFAULT_CONDITIONS);
   };
 
   const saveCurrentQuote = (status: "Brouillon" | "Finalisé") => {
@@ -463,6 +495,10 @@ export default function Page() {
       companyNom: company.nom,
       companyAdresse: company.adresse,
       companyEmail: company.email,
+      companyTelephone: company.telephone,
+      companySiret: company.siret,
+      companyTvaIntracom: company.tvaIntracom,
+      companyLogoUrl: company.logoUrl,
       lines: cleanedLines,
       notes,
       conditions,
@@ -499,6 +535,24 @@ export default function Page() {
     }, 300);
   };
 
+  const saveSettings = () => {
+    const nextCompany: CompanyInfo = {
+      ...defaultCompanyInfo,
+      ...settingsForm,
+      logoUrl: settingsForm.logoUrl.trim() || "/logo.png",
+      defaultQuoteNote: settingsForm.defaultQuoteNote.trim() || DEFAULT_NOTE,
+      defaultPaymentConditions:
+        settingsForm.defaultPaymentConditions.trim() || DEFAULT_CONDITIONS,
+    };
+
+    setCompany(nextCompany);
+    window.localStorage.setItem(COMPANY_KEY, JSON.stringify(nextCompany));
+    setNotes(nextCompany.defaultQuoteNote);
+    setConditions(nextCompany.defaultPaymentConditions);
+    setErrorMessage("");
+    setSuccessMessage("Paramètres enregistrés");
+  };
+
   const menuItems: { id: AppView; label: string }[] = [
     { id: "create", label: "Creer un devis" },
     { id: "quotes", label: "Mes devis" },
@@ -522,6 +576,19 @@ export default function Page() {
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[240px_minmax(0,1fr)_300px]">
           <aside className="no-print rounded-2xl border border-blue-100 bg-white p-4 shadow-sm lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)]">
+            <div className="mb-6 flex items-center gap-3">
+              <img
+                src={company.logoUrl || "/logo.png"}
+                alt="Logo"
+                className="h-16 w-16 rounded-xl border bg-white p-2 object-contain shadow-sm"
+              />
+
+              <div>
+                <h1 className="text-xl font-bold text-slate-900">Henri BTP</h1>
+
+                <p className="text-sm text-slate-500">Logiciel de devis</p>
+              </div>
+            </div>
             <nav className="space-y-2">
               {menuItems.map((item) => (
                 <button
@@ -545,35 +612,31 @@ export default function Page() {
               <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-8">
                 <header className="border-b border-slate-200 pb-6">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-600 text-lg font-bold text-white">
-                        {company.logoText || "HF"}
+                    <div className="space-y-3">
+                      <div className="mb-6 flex items-center gap-3">
+                        <img
+                          src={company.logoUrl || "/logo.png"}
+                          alt="Logo"
+                          className="h-16 w-16 rounded-xl border bg-white p-2 object-contain shadow-sm"
+                        />
+
+                        <div>
+                          <h1 className="text-xl font-bold text-slate-900">{company.nom}</h1>
+
+                          <p className="text-sm text-slate-500">Logiciel de devis</p>
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        <input
-                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold"
-                          value={company.nom}
-                          onChange={(e) =>
-                            setCompany((prev) => ({ ...prev, nom: e.target.value }))
-                          }
-                          placeholder="Nom entreprise"
-                        />
-                        <input
-                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                          value={company.adresse}
-                          onChange={(e) =>
-                            setCompany((prev) => ({ ...prev, adresse: e.target.value }))
-                          }
-                          placeholder="Adresse entreprise"
-                        />
-                        <input
-                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                          value={company.email}
-                          onChange={(e) =>
-                            setCompany((prev) => ({ ...prev, email: e.target.value }))
-                          }
-                          placeholder="Email entreprise"
-                        />
+                      <div className="space-y-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                        <p className="font-semibold text-slate-900">{company.nom}</p>
+                        <p className="text-slate-600">{company.adresse}</p>
+                        <p className="text-slate-600">{company.email}</p>
+                        {company.telephone && (
+                          <p className="text-slate-600">Tel: {company.telephone}</p>
+                        )}
+                        {company.siret && <p className="text-slate-600">SIRET: {company.siret}</p>}
+                        {company.tvaIntracom && (
+                          <p className="text-slate-600">TVA: {company.tvaIntracom}</p>
+                        )}
                       </div>
                     </div>
                     <div className="rounded-xl bg-slate-50 p-4 text-sm">
@@ -869,8 +932,93 @@ export default function Page() {
               <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 className="text-2xl font-bold text-blue-700">Parametres</h2>
                 <p className="mt-2 text-sm text-slate-500">
-                  Personnalisez les informations de votre entreprise directement en haut du devis.
+                  Modifiez vos informations entreprise et les valeurs par defaut du devis.
                 </p>
+                <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <input
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    value={settingsForm.nom}
+                    onChange={(e) =>
+                      setSettingsForm((prev) => ({ ...prev, nom: e.target.value }))
+                    }
+                    placeholder="Nom de l'entreprise"
+                  />
+                  <input
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    value={settingsForm.adresse}
+                    onChange={(e) =>
+                      setSettingsForm((prev) => ({ ...prev, adresse: e.target.value }))
+                    }
+                    placeholder="Adresse de l'entreprise"
+                  />
+                  <input
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    value={settingsForm.email}
+                    onChange={(e) =>
+                      setSettingsForm((prev) => ({ ...prev, email: e.target.value }))
+                    }
+                    placeholder="Email"
+                  />
+                  <input
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    value={settingsForm.telephone}
+                    onChange={(e) =>
+                      setSettingsForm((prev) => ({ ...prev, telephone: e.target.value }))
+                    }
+                    placeholder="Téléphone"
+                  />
+                  <input
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    value={settingsForm.siret}
+                    onChange={(e) =>
+                      setSettingsForm((prev) => ({ ...prev, siret: e.target.value }))
+                    }
+                    placeholder="SIRET"
+                  />
+                  <input
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    value={settingsForm.tvaIntracom}
+                    onChange={(e) =>
+                      setSettingsForm((prev) => ({ ...prev, tvaIntracom: e.target.value }))
+                    }
+                    placeholder="TVA intracommunautaire"
+                  />
+                  <input
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
+                    value={settingsForm.logoUrl}
+                    onChange={(e) =>
+                      setSettingsForm((prev) => ({ ...prev, logoUrl: e.target.value }))
+                    }
+                    placeholder="Logo URL"
+                  />
+                  <textarea
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
+                    rows={3}
+                    value={settingsForm.defaultPaymentConditions}
+                    onChange={(e) =>
+                      setSettingsForm((prev) => ({
+                        ...prev,
+                        defaultPaymentConditions: e.target.value,
+                      }))
+                    }
+                    placeholder="Conditions de paiement par défaut"
+                  />
+                  <textarea
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
+                    rows={3}
+                    value={settingsForm.defaultQuoteNote}
+                    onChange={(e) =>
+                      setSettingsForm((prev) => ({ ...prev, defaultQuoteNote: e.target.value }))
+                    }
+                    placeholder="Note par défaut du devis"
+                  />
+                </div>
+                <button
+                  onClick={saveSettings}
+                  className="mt-4 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                  Enregistrer les paramètres
+                </button>
               </article>
             )}
           </section>
@@ -929,12 +1077,28 @@ export default function Page() {
 
         <section className="print-only print-a4">
           <header className="border-b border-slate-300 pb-4">
+            {printQuote.companyLogoUrl && (
+              <img
+                src={printQuote.companyLogoUrl}
+                alt="Logo entreprise"
+                className="mb-3 h-14 w-14 rounded-lg border border-slate-200 object-contain p-1"
+              />
+            )}
             <p className="text-sm text-slate-500">
               DEVIS N° {printQuote.numero} | Date: {printQuote.date}
             </p>
             <h2 className="mt-1 text-2xl font-bold text-slate-900">{printQuote.companyNom}</h2>
             <p className="text-sm text-slate-600">{printQuote.companyAdresse}</p>
             <p className="text-sm text-slate-600">{printQuote.companyEmail}</p>
+            {printQuote.companyTelephone && (
+              <p className="text-sm text-slate-600">Tel: {printQuote.companyTelephone}</p>
+            )}
+            {printQuote.companySiret && (
+              <p className="text-sm text-slate-600">SIRET: {printQuote.companySiret}</p>
+            )}
+            {printQuote.companyTvaIntracom && (
+              <p className="text-sm text-slate-600">TVA: {printQuote.companyTvaIntracom}</p>
+            )}
             <p className="mt-3 text-sm text-slate-800">Client: {printQuote.clientNom || "-"}</p>
             <p className="text-sm text-slate-600">{printQuote.clientAdresse || "-"}</p>
           </header>
