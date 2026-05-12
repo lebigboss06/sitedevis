@@ -732,9 +732,9 @@ export default function Page() {
           <aside className="no-print rounded-2xl border border-blue-100 bg-white p-4 shadow-sm lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)]">
             <div className="mb-6 flex items-center gap-3">
               <img
-                src={company.logoUrl || "/logo.png"}
-                alt="Logo"
-                className="h-16 w-16 rounded-xl border bg-white p-2 object-contain shadow-sm"
+                src="/logo.png"
+                alt="Logo entreprise"
+                className="w-16 h-16 object-contain rounded-xl"
               />
 
               <div>
@@ -781,9 +781,9 @@ export default function Page() {
                     <div className="space-y-3">
                       <div className="mb-6 flex items-center gap-3">
                         <img
-                          src={company.logoUrl || "/logo.png"}
-                          alt="Logo"
-                          className="h-16 w-16 rounded-xl border bg-white p-2 object-contain shadow-sm"
+                          src="/logo.png"
+                          alt="Logo entreprise"
+                          className="w-16 h-16 object-contain rounded-xl"
                         />
 
                         <div>
@@ -1258,13 +1258,13 @@ export default function Page() {
 
         <section className="print-only print-a4">
           <header className="border-b border-slate-300 pb-4">
-            {printQuote.companyLogoUrl && (
+            <div className="mb-3">
               <img
-                src={printQuote.companyLogoUrl}
+                src="/logo.png"
                 alt="Logo entreprise"
-                className="mb-3 h-14 w-14 rounded-lg border border-slate-200 object-contain p-1"
+                className="w-16 h-16 object-contain rounded-xl"
               />
-            )}
+            </div>
             <p className="text-sm text-slate-500">
               DEVIS N° {printQuote.numero} | Date: {printQuote.date}
             </p>
