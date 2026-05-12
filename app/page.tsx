@@ -738,7 +738,7 @@ export default function Page() {
               />
 
               <div>
-                <h1 className="text-xl font-bold text-slate-900">{company.nom}</h1>
+                <h1 className="text-xl font-bold text-slate-900">Devis Sylvain & Hugo</h1>
 
                 <p className="text-sm text-slate-500">Logiciel de devis</p>
               </div>
@@ -787,7 +787,7 @@ export default function Page() {
                         />
 
                         <div>
-                          <h1 className="text-xl font-bold text-slate-900">{company.nom}</h1>
+                          <h1 className="text-xl font-bold text-slate-900">Devis Sylvain & Hugo</h1>
 
                           <p className="text-sm text-slate-500">Logiciel de devis</p>
                         </div>
